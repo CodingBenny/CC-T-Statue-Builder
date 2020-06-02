@@ -493,7 +493,10 @@ local function build()
 				nextPos = findClosest(i)
 			end
 		end
-		if settings.get("statue.returnForItems", true) then goTo(zero) end
+		if settings.get("statue.returnForItems", true) then
+			goTo(zero)
+			face(vector.new(0,1,0))
+		end
 		item_min,item_max = item_max,countItems(item_max)
 	until used_slots == 0
 end
