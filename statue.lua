@@ -10,7 +10,9 @@ local reqs = {
 "https://raw.githubusercontent.com/DelusionalLogic/pngLua/master/stream.lua",
 "https://raw.githubusercontent.com/DelusionalLogic/pngLua/master/deflate.lua",
 "https://raw.githubusercontent.com/DelusionalLogic/pngLua/master/png.lua",
-"https://raw.githubusercontent.com/iskolbin/lbase64/master/base64.lua"
+"https://raw.githubusercontent.com/iskolbin/lbase64/master/base64.lua",
+"https://raw.githubusercontent.com/CodingBenny/CC-T-Statue-Builder/master/block_colours.lua",
+"https://raw.githubusercontent.com/CodingBenny/CC-T-Statue-Builder/master/poses.lua",
 }
 local foldername = "lib_statue"
 
