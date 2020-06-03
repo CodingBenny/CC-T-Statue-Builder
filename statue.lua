@@ -103,7 +103,8 @@ local allowedBlocks = {
   yellow = { 222, 222, 108 }
 }
 
-local function findBestBlock(x, y)
+local function findBestBlock(x, y, asset)
+	local skin = asset or skin
 	if skin.height < y then return nil end
 	local p = skin:getPixel(x,y)
 	if p.A == 0 then return nil end
@@ -165,7 +166,6 @@ local function mult(a,b)
 	return vector.new(a.x*b.x, a.y*b.y, a.z*b.z)
 end
 local function gt(a,b) return a.x > b or a.y > b or a.z > b end
-
 
 -- name, size, texture, overlay texture
 local body_parts = {
@@ -236,7 +236,7 @@ local function planCube(part, polish)
 	if not pose then return end
 	local off_center = rotate(part[2],pose[2])
 	off_center = (vector.new(math.abs(off_center.x),math.abs(off_center.y),math.abs(off_center.z))-one)/2
-	local center = vector.new(pose[1][1],pose[1][2],pose[1][3])+off_center
+	local center = vector.new(unpack(pose[1]))+off_center
 	local flip = (skin.height == 32) and part.flip and not polish
 	for i=1,#sides do
 		local s = sides[i]
@@ -278,9 +278,32 @@ local function planCube(part, polish)
 	end
 end
 
+local function planAsset(asset)
+	local response,msg = http.get(asset[1], nil, true)
+	if not response then printError(msg) return end
+	local pngfile = fs.open(foldername .."/lastskin.png","wb")
+	pngfile.write(response.readAll())
+	pngfile.close()
+	local asset_png = pngImage(foldername .. "/lastskin.png")
+	local lfl_Corner = vector.new(unpack(asset[2]))
+	local up = rotate(vector.new(1,0,0),asset[3])
+	local right = rotate(vector.new(0,0,1),asset[3])
+	for x=1,asset_png.width do
+		for y=1,asset_png.height do
+			setP(lfl_Corner+right*(x-1)+ up*(asset_png.height-y),findBestBlock(x,y,asset_png))
+		end
+	end
+end
+
 --put blocks generously
 for _,j in ipairs(body_parts) do
 	planCube(j)
+end
+
+if poses[pose].assets then
+	for _,j in ipairs(poses[pose].assets) do
+		planAsset(j)
+	end
 end
 
 --cut corners literally
@@ -493,10 +516,7 @@ local function build()
 				nextPos = findClosest(i)
 			end
 		end
-		if settings.get("statue.returnForItems", true) then
-			goTo(zero)
-			face(vector.new(0,1,0))
-		end
+		if settings.get("statue.returnForItems", true) then goTo(zero) end
 		item_min,item_max = item_max,countItems(item_max)
 	until used_slots == 0
 end
