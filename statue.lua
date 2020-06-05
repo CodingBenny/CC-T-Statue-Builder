@@ -512,6 +512,14 @@ local function getSlot(block)
 end
 
 local function findClosest(layer)
+	local movDir = vector.new(0,1,0)
+	for i=1,4 do
+		local n = pos + movDir
+		if getP(n) then
+			return n
+		end
+		movDir=movDir:cross(up)
+	end
 	local ry, rz, diff = nil, nil, 1000000
 	for i,j in pairs(plan[layer] or {}) do
 		for k,l in pairs(j) do
@@ -531,8 +539,7 @@ print("Press t to abort")
 local function build()
 	repeat
 		if type(_G.gatherItems) == "function" then
-			_G.gatherItems(items)
-			if not checkItems() then error("Did not get all items",0) end
+			parallel.waitForAll(waitForItems, function() _G.gatherItems(items) end)
 		else
 			waitForItems()
 		end
