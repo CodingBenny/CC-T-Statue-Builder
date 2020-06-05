@@ -65,7 +65,7 @@ response,msg = http.get(
 	"https://sessionserver.mojang.com/session/minecraft/profile/".. player_data.id)
 if not response then printError(msg) return end
 player_data = textutils.unserializeJSON(response.readAll())
-local texture_url 
+local texture_url
 for i,j in pairs(player_data.properties) do
 	if type(j) == "table" and j.name == "textures" then
 		player_data = textutils.unserializeJSON(base64.decode(j.value))
@@ -103,16 +103,50 @@ local allowedBlocks = {
   yellow = { 222, 222, 108 }
 }
 
+--[[
+		]]
+
+local function hsv_of_rgb(br,bg,bb)
+	local r,g,b = br/255,bg/255,bb/255
+	local max = math.max(r,g,b)
+	local min = math.min(r,g,b)
+	local d = max - min
+	local h,s,v = 0,0,max
+	if r == max then
+		h = 60 * (g - b) / d
+	elseif g == max then
+		h = 60 * (2 + (b - r) / d)
+	elseif b == max then
+		h = 60 * (4 + (r - g) / d)
+	end
+	h = (h + 360) % 360
+	if max > 0 then s = d / max end
+	return h,s,v
+end
+
+--[[
+	Failed attempt of mostly hue checking
+	local h1,s1,v1 = hsv_of_rgb(unpack(j))
+		local h2,s2,v2 = hsv_of_rgb(p.R,p.G,p.B)
+		local dh,ds,dv = h1-h2,s1-s2,v1-v2
+		local dc = 1000 *dh*dh + 10 * ds*ds + dv*dv
+]]
+
 local function findBestBlock(x, y, asset)
 	local skin = asset or skin
 	if skin.height < y then return nil end
 	local p = skin:getPixel(x,y)
 	if p.A == 0 then return nil end
-	local block, diff = nil, 17000000
+	local block, diff = nil, math.huge
 	for i,j in pairs(allowedBlocks) do
+		-- https://en.wikipedia.org/wiki/Color_difference
+		local dr = (p.R+j[1])/2
 		local r, g, b = p.R-j[1], p.G-j[2], p.B-j[3]
-		if r*r + g*g + b*b < diff then
-			block, diff = i, r*r+g*g+b*b
+		local dc = (2 + dr / 256) * r * r +
+			4 * g * g +
+			(2 + (255 - dr) / 256) * b * b
+		if dc < diff then
+			block, diff = i, dc
 		end
 	end
 	return block
@@ -121,7 +155,7 @@ end
 for y=9,16 do
 	for x=9,16 do
 		local g = findBestBlock(x,y)
-		term.setBackgroundColour(colors[g])
+		term.setBackgroundColour(colors[g] or colors.black)
 		write(" ")
 	end
 	term.setBackgroundColour(colors.black)
