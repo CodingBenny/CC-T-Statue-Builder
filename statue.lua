@@ -1,4 +1,4 @@
-if turtle.getFuelLevel() < 6000 then
+if turtle and turtle.getFuelLevel() < 6000 then
 print("Computer says no")
 sleep(3)
 print("Refuel first")
@@ -41,7 +41,7 @@ if #args == 0 then
 	return
 end
 local name = table.remove(args,1)
---local size = tonumber(table.remove(args,1) or 1) or error("Invalid Size")
+local size = tonumber(table.remove(args,1) or 1) or error("Invalid Size")
 local pose = table.remove(args,1) or "default"
 local settings_string = settings.get("statue.patterns", "terracotta -glazed concrete")
 local patterns = args or {}
@@ -102,35 +102,6 @@ local allowedBlocks = {
   white = { 240, 240, 240 },
   yellow = { 222, 222, 108 }
 }
-
---[[
-		]]
-
-local function hsv_of_rgb(br,bg,bb)
-	local r,g,b = br/255,bg/255,bb/255
-	local max = math.max(r,g,b)
-	local min = math.min(r,g,b)
-	local d = max - min
-	local h,s,v = 0,0,max
-	if r == max then
-		h = 60 * (g - b) / d
-	elseif g == max then
-		h = 60 * (2 + (b - r) / d)
-	elseif b == max then
-		h = 60 * (4 + (r - g) / d)
-	end
-	h = (h + 360) % 360
-	if max > 0 then s = d / max end
-	return h,s,v
-end
-
---[[
-	Failed attempt of mostly hue checking
-	local h1,s1,v1 = hsv_of_rgb(unpack(j))
-		local h2,s2,v2 = hsv_of_rgb(p.R,p.G,p.B)
-		local dh,ds,dv = h1-h2,s1-s2,v1-v2
-		local dc = 1000 *dh*dh + 10 * ds*ds + dv*dv
-]]
 
 local function findBestBlock(x, y, asset)
 	local skin = asset or skin
@@ -218,7 +189,8 @@ local body_parts = {
 {"torso",vector.new(12,4,8),{16,16},{16,32}},
 {"head",vector.new(8,8,8),{0,0},{32,0}}
 }
-if player_data.metadata and player_data.metadata.model == "slim" then
+if player_data.textures.SKIN.metadata and 
+  player_data.textures.SKIN.metadata.model == "slim" then
 	for i,j in ipairs(body_parts) do
 		if j[1]:match("big") then
 			j[1] = j[1]:gsub("big","small")
@@ -234,12 +206,13 @@ if skin.height == 32 then
 end
 
 local sides = {
-	{vector.new(-1,-1,-1),vector.new( 0, 0, 1),vector.new( 0, 1, 0),2,0}, --bottom
-	{vector.new( 1, 1,-1),vector.new( 0, 0, 1),vector.new( 0,-1, 0),1,0}, --top
-	{vector.new( 1, 1, 1),vector.new( 0, 0,-1),vector.new(-1, 0, 0),3,1}, --back
-	{vector.new( 1, 1,-1),vector.new( 0,-1, 0),vector.new(-1, 0, 0),0,1}, --right
-	{vector.new( 1,-1, 1),vector.new( 0, 1, 0),vector.new(-1, 0, 0),2,1}, --left
-	{vector.new( 1,-1,-1),vector.new( 0, 0, 1),vector.new(-1, 0, 0),1,1}, --front
+	--start corner        texil right          texil down   texture x y  overlay direction
+	{vector.new(-1, 1,-1),vector.new( 0, 0, 1),vector.new( 0,-1, 0),2,0, vector.new(-1, 0, 0)}, --bottom
+	{vector.new( 1, 1,-1),vector.new( 0, 0, 1),vector.new( 0,-1, 0),1,0, vector.new( 1, 0, 0)}, --top
+	{vector.new( 1, 1,-1),vector.new( 0,-1, 0),vector.new(-1, 0, 0),0,1, vector.new( 0, 0,-1)}, --left (right cheek)
+	{vector.new( 1,-1, 1),vector.new( 0, 1, 0),vector.new(-1, 0, 0),2,1, vector.new( 0, 0, 1)}, --right (left cheek)
+	{vector.new( 1, 1, 1),vector.new( 0, 0,-1),vector.new(-1, 0, 0),3,1, vector.new( 0, 1, 0)}, --back
+	{vector.new( 1,-1,-1),vector.new( 0, 0, 1),vector.new(-1, 0, 0),1,1, vector.new( 0,-1, 0)}, --front
 }
 
 local function tOffset(side, part)
@@ -268,31 +241,30 @@ local flip_vector = vector.new(1,1,-1)
 local function planCube(part, polish)
 	local pose = poses[pose][part[1]] or poses[pose][part[1]:gsub("small","big")]
 	if not pose then return end
-	local off_center = rotate(part[2],pose[2])
+	local off_center = rotate(part[2],pose[2])*size
 	off_center = (vector.new(math.abs(off_center.x),math.abs(off_center.y),math.abs(off_center.z))-one)/2
-	local center = vector.new(unpack(pose[1]))+off_center
+	local center = vector.new(unpack(pose[1]))*size+off_center
 	local flip = (skin.height == 32) and part.flip and not polish
 	for i=1,#sides do
 		local s = sides[i]
-		local right = rotate(s[2],pose[2])
-		local down = rotate(s[3],pose[2])
-		local start_corner = mult(off_center, rotate(s[1],pose[2]))
-		local overlay_direction = right:cross(down)
-		local texture_width = math.abs(s[2]:dot(part[2]))-1
-		local texture_height = math.abs(s[3]:dot(part[2]))-1
+		local optional_flip = flip and flip_vector or one
+		local right = rotate(mult(s[2],optional_flip),pose[2])
+		local down = rotate(mult(s[3],optional_flip),pose[2])
+		local start_corner = mult(off_center, rotate(mult(s[1],optional_flip),pose[2])) + center
+		local overlay_direction = rotate(mult(s[6],optional_flip),pose[2])
+		local texture_width = math.abs(s[2]:dot(part[2]))*size-1
+		local texture_height = math.abs(s[3]:dot(part[2]))*size-1
 		local sx,sy = tOffset(s, part)
 		for x=0,texture_width do
 			for y=0,texture_height do
 				local p = start_corner + (right*x)+(down*y)
-				if flip then p=mult(p,flip_vector) end
-				p = p + center
 				local op = p+overlay_direction
 				if not polish then
-					local oblock = findBestBlock(sx+part[4][1]+x,sy+part[4][2]+y)
+					local oblock = findBestBlock(sx+part[4][1]+math.floor(x/size),sy+part[4][2]+math.floor(y/size))
 					if not flip and oblock then
 						setP(op,oblock)
 					else
-						local block = findBestBlock(sx+part[3][1]+x,sy+part[3][2]+y)
+						local block = findBestBlock(sx+part[3][1]+math.floor(x/size),sy+part[3][2]+math.floor(y/size))
 						if block then
 							setP(p,block)
 						end
@@ -319,139 +291,22 @@ local function planAsset(asset)
 	pngfile.write(response.readAll())
 	pngfile.close()
 	local asset_png = pngImage(foldername .. "/lastskin.png")
-	local lfl_Corner = vector.new(unpack(asset[2]))
+	local lfl_Corner = vector.new(unpack(asset[2]))*size
 	local up = rotate(vector.new(1,0,0),asset[3])
 	local right = rotate(vector.new(0,0,1),asset[3])
-	for x=1,asset_png.width do
-		for y=1,asset_png.height do
-			setP(lfl_Corner+right*(x-1)+ up*(asset_png.height-y),findBestBlock(x,y,asset_png))
-		end
-	end
-end
-
---put blocks generously
-for _,j in ipairs(body_parts) do
-	planCube(j)
-end
-
-if poses[pose].assets then
-	for _,j in ipairs(poses[pose].assets) do
-		planAsset(j)
-	end
-end
-
---cut corners literally
-for _,j in ipairs(body_parts) do
-	planCube(j, true)
-end
-
-local gravity_blocks = {
-	sand=true, gravel=true,
-	purple_concrete_powder = true,
-    cyan_concrete_powder = true,
-    white_concrete_powder = true,
-    yellow_concrete_powder = true,
-    green_concrete_powder = true,
-    orange_concrete_powder = true,
-    pink_concrete_powder = true,
-    black_concrete_powder = true,
-    blue_concrete_powder = true,
-    light_blue_concrete_powder = true,
-    brown_concrete_powder = true,
-    gray_concrete_powder = true,
-    red_concrete_powder = true,
-    magenta_concrete_powder = true,
-    lime_concrete_powder = true,
-    light_gray_concrete_powder = true,}
-
-
-for n,i in pairs(plan) do
-	for m,j in pairs(i) do
-		for k,l in pairs(j) do
-			if l == "removed" then
-				j[k] = nil
-			end
-			if gravity_blocks[l] then
-				local p = vector.new(n-1,m,k)
-				if not getP(p) then setP(p,"string") end
+	for x=1,asset_png.width*size do
+		for y=1,asset_png.height*size do
+			local block = findBestBlock(math.floor(x/size),math.floor(y/size),asset_png)
+			if block then
+				setP(lfl_Corner+right*(x-1)+ up*(asset_png.height-y),block)
 			end
 		end
 	end
-end
-
-local items = {}
-local used_slots = 0
-
-local function countItems(minLayer)
-	items = {}
-	used_slots = 0
-	local isFull = false
-	for i=minLayer,maxHeight do
-		for _,j in pairs(plan[i] or {}) do
-			for _,k in pairs(j) do
-				if used_slots < 16 or (items[k] and items[k] % 64 ~= 0) then
-					items[k] = items[k] and items[k]+1 or 1
-					if items[k] % 64 == 1 then
-						used_slots=used_slots+1
-					end
-				else
-					isFull = true
-				end
-			end
-		end
-		if isFull then
-			return i
-		end
-	end
-	return maxHeight
-end
-
-local item_min = 0
-local item_max = countItems(0)
-
-local function checkItems()
-	local hasItems = {}
-	for i=1,16 do
-		local s = turtle.getItemDetail(i)
-		if s then
-			local name = s.name:match(":(.*)")
-			hasItems[name] = hasItems[name] and hasItems[name]+s.count or s.count
-		end
-	end
-	term.clear()
-	term.setCursorPos(1,1)
-	print(string.format("Items for layers %d-%d:",item_min,item_max))
-	local hasAll = true
-	for block,count in pairs(items) do
-		print(string.format("%6dx %s",hasItems[block] and count-hasItems[block] or count,block))
-		if not hasItems[block] or hasItems[block] < count then
-			hasAll = false
-		end
-	end
-	term.setTextColor(term.isColor() and colors.red or colors.lightGray)
-	for block,count in pairs(hasItems) do
-		if not items[block] then
-			print(string.format("%6dx %s",-hasItems[block],block))
-		end
-	end
-	term.setTextColor(colors.white)
-	return hasAll
-end
-
-local function waitForItems()
-	while not checkItems() do
-		os.pullEvent("turtle_inventory")
-	end
-	term.clear()
-	term.setCursorPos(1,1)
-	print("Work Work")
 end
 
 local pos = vector.new(0,0,0)
 local facing = vector.new(0,1,0)
 local up = vector.new(1,0,0)
-
-getmetatable(pos).__eq = function (a,b) return a.x == b.x and a.y == b.y and a.z == b.z end
 
 local aborted = false
 local function checkAborted()
@@ -501,6 +356,154 @@ local function goTo(tpos)
 	end
 end
 
+--put blocks generously
+for _,j in ipairs(body_parts) do
+	planCube(j)
+end
+
+if poses[pose].assets then
+	for _,j in ipairs(poses[pose].assets) do
+		planAsset(j)
+	end
+end
+
+--assuming the groud is flat
+local blocksUnderneath = turtle and turtle.detectDown()
+plan[-1] = nil
+if blocksUnderneath then
+	for m,j in pairs(plan[0] or {}) do
+		for k,l in pairs(j) do
+			setP(vector.new(-1,m,k),"removed")
+		end
+	end
+end
+
+--cut corners literally
+for _,j in ipairs(body_parts) do
+	planCube(j, true)
+end
+
+local gravity_blocks = {
+	sand=true, gravel=true,
+	purple_concrete_powder = true,
+    cyan_concrete_powder = true,
+    white_concrete_powder = true,
+    yellow_concrete_powder = true,
+    green_concrete_powder = true,
+    orange_concrete_powder = true,
+    pink_concrete_powder = true,
+    black_concrete_powder = true,
+    blue_concrete_powder = true,
+    light_blue_concrete_powder = true,
+    brown_concrete_powder = true,
+    gray_concrete_powder = true,
+    red_concrete_powder = true,
+    magenta_concrete_powder = true,
+    lime_concrete_powder = true,
+    light_gray_concrete_powder = true,}
+
+
+for n,i in pairs(plan) do
+	for m,j in pairs(i) do
+		for k,l in pairs(j) do
+			if l == "removed" then
+				j[k] = nil
+			end
+			if gravity_blocks[l] then
+				local p = vector.new(n-1,m,k)
+				if not getP(p) then setP(p,"string") end
+			end
+		end
+	end
+end
+
+local function countItems(last_section)
+	local items = last_section.rest_items or {}
+	local rest_items = {}
+	local used_slots = 0
+	local minLayer = last_section.maxLayer or -2
+	local isFull = false
+	for i,j in pairs(items) do
+		while j > 0 do
+			if not isFull then
+				used_slots=used_slots+1
+				j=j-64
+				if used_slots == 16 - settings.get("statue.reservedSlots", 0) then
+					isFull = true
+				end
+			else
+				items[i] = items[i] - j
+				rest_items[i] = j
+				if items[i] == 0 then
+					items[i] = nil
+				end
+			end
+		end
+	end
+	if isFull then
+		return {items=items,rest_items=rest_items,used_slots=used_slots,minLayer=minLayer,maxLayer=minLayer}
+	end
+	for i=minLayer+1,maxHeight do
+		for _,j in pairs(plan[i] or {}) do
+			for _,k in pairs(j) do
+				if used_slots < 16 - settings.get("statue.reservedSlots", 0) or (items[k] and items[k] % 64 ~= 0) then
+					items[k] = items[k] and items[k]+1 or 1
+					if items[k] % 64 == 1 then
+						used_slots=used_slots+1
+					end
+				else
+					rest_items[k] = rest_items[k] and rest_items[k]+1 or 1
+					isFull = true
+				end
+			end
+		end
+		if isFull then
+			return {items=items,rest_items=rest_items,used_slots=used_slots,minLayer=minLayer,maxLayer=i}
+		end
+	end
+	return {items=items,rest_items=rest_items,used_slots=used_slots,minLayer=minLayer,maxLayer=maxHeight}
+end
+
+local function checkItems(section)
+	local hasItems = {}
+	for i=1,16 do
+		local s = turtle.getItemDetail(i)
+		if s then
+			local name = s.name:match(":(.*)")
+			hasItems[name] = hasItems[name] and hasItems[name]+s.count or s.count
+		end
+	end
+	term.clear()
+	term.setCursorPos(1,1)
+	print(string.format("Items for layers %d-%d:",section.minLayer+2,section.maxLayer+2))
+	local hasAll = true
+	for block,count in pairs(section.items) do
+		print(string.format("%6dx %s",hasItems[block] and count-hasItems[block] or count,block))
+		if not hasItems[block] or hasItems[block] < count then
+			hasAll = false
+		end
+	end
+	term.setTextColor(term.isColor() and colors.red or colors.lightGray)
+	for block,count in pairs(hasItems) do
+		if not section.items[block] then
+			print(string.format("%6dx %s",-hasItems[block],block))
+		end
+	end
+	term.setTextColor(colors.white)
+	return hasAll
+end
+
+local function waitForItems(section)
+	while not checkItems(section) do
+		os.pullEvent("turtle_inventory")
+	end
+	term.clear()
+	term.setCursorPos(1,1)
+	print("Work Work")
+end
+
+getmetatable(pos).__eq = function (a,b) return a.x == b.x and a.y == b.y and a.z == b.z end
+
 local function getSlot(block)
 	for i=1,16 do
 		local s = turtle.getItemDetail(i)
@@ -515,7 +518,8 @@ local function findClosest(layer)
 	local movDir = vector.new(0,1,0)
 	for i=1,4 do
 		local n = pos + movDir
-		if getP(n) then
+		n.x = layer
+		if getP(n) and getSlot(getP(n)) then
 			return n
 		end
 		movDir=movDir:cross(up)
@@ -537,32 +541,72 @@ local zero = vector.new()
 print("Press t to abort")
 
 local function build()
+	local current = countItems({})
+	local nextSection
+	if type(_G.smeltNextItems) == "function" then
+		_G.smeltNextItems(current.items)
+	end
 	repeat
-		if type(_G.gatherItems) == "function" then
-			parallel.waitForAll(waitForItems, function() _G.gatherItems(items) end)
-		else
-			waitForItems()
+		nextSection = countItems(current)
+		rednet.send(16,textutils.serialize(nextSection))
+		if settings.get("statue.returnForItems", true) then
+			goTo(zero)
+			face(vector.new(0,1,0))
 		end
-		for i=item_min,item_max do
+		if type(_G.smeltNextItems) == "function" then
+			_G.smeltNextItems(nextSection.items)
+		end
+		if type(_G.gatherItems) == "function" then
+			parallel.waitForAll(function () waitForItems(current) end, function() _G.gatherItems(current.items) end)
+		else
+			waitForItems(current)
+		end
+		for i=current.minLayer,current.maxLayer do
 			local nextPos = findClosest(i)
-			print("Building layer " .. tostring(i+1))
+			print("Building layer " .. tostring(i+2))
 			while nextPos do
-				turtle.select(getSlot(getP(nextPos)))
+				local slot = getSlot(getP(nextPos))
+				if turtle.getSelectedSlot() ~= slot then
+					turtle.select(slot)
+				end
 				goTo(nextPos + up)
 				while not turtle.placeDown() do
 					checkAborted()
-					turtle.digDown()
 				end
 				setP(nextPos,nil)
 				nextPos = findClosest(i)
 			end
 		end
-		if settings.get("statue.returnForItems", true) then
-			goTo(zero)
-			face(vector.new(0,1,0))
+		current = nextSection
+	until current.used_slots == 0
+end
+
+local function setBlocks()
+	for i=-1,#plan do
+		for k,l in pairs(plan[i] or {}) do
+			for m,n in pairs(l) do
+				if n == "string" then n = "tripwire" end
+				local ok,msg
+				repeat 
+					ok,msg = pcall(commands.async.setblock,"~"..k,"~"..i,"~"..m,n)
+					if not ok then --catch tasklimit
+						printError(msg)
+						sleep(1)
+					end
+					if aborted then
+						return
+					end
+				until ok
+			end
 		end
-		item_min,item_max = item_max,countItems(item_max)
-	until used_slots == 0
+	end
+	local s = os.startTimer(0.5)
+	while true do
+		local r = {os.pullEvent()}
+		if r[1] == "task_complete" and not r[4] then
+			for i,j in ipairs(r[5]) do printError(j) end
+		elseif r[1] == "timer" and r[2] == s then break end
+	end
 end
 
 local function listenAbort()
@@ -575,16 +619,26 @@ local function listenAbort()
 	--Hard Abort
 end
 
-local ok,msg = pcall(function() parallel.waitForAny(build, listenAbort) end)
+local ok,msg
+if turtle then
+	ok,msg = pcall(function() parallel.waitForAny(build, listenAbort) end)
+elseif commands then
+	ok,msg = pcall(function() parallel.waitForAny(setBlocks, listenAbort) end)
+else
+	print("Must be on a command computer or on a turtle")
+end
 
 if not ok then
 	printError(msg)
 	if settings.get("statue.returnOnError", true) and pos ~= zero then
 		print("Going home to cry")
 		goTo(zero)
+		face(vector.new(0,1,0))
 	end
 else
-	if settings.get("statue.returnWhenDone", true) then goTo(zero) end
+	if settings.get("statue.returnWhenDone", true) then
+		goTo(zero)
+		face(vector.new(0,1,0))
+	end
 	print("Done")
 end
-face(vector.new(0,1,0))
