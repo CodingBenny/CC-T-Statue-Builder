@@ -149,4 +149,13 @@ kick = {
 	left_arm_small = {{21,12,20},{0,-math.pi/2,0}},
 	left_arm_big = {{20,12,20},{0,-math.pi/2,0}},
 	},
+sunbath = {
+	head = {{0,24,4},{0,0,-math.pi/2}},
+	torso = {{0,12,4},{0,0,-math.pi/2}},
+	right_leg = {{0,0,4},{0,0,-math.pi/2}},
+	left_leg = {{0,0,8},{0,0,-math.pi/2}},
+	right_arm_small = {{0,12,1},{0,0,-math.pi/2}},
+	right_arm_big = {{0,12,0},{0,0,-math.pi/2}},
+	left_arm_big = {{0,12,12},{0,0,-math.pi/2}},
+	},
 }
