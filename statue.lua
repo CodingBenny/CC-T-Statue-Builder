@@ -296,9 +296,9 @@ local function planAsset(asset)
 	local right = rotate(vector.new(0,0,1),asset[3])
 	for x=1,asset_png.width*size do
 		for y=1,asset_png.height*size do
-			local block = findBestBlock(math.floor(x/size),math.floor(y/size),asset_png)
+			local block = findBestBlock(math.ceil(x/size),math.ceil(y/size),asset_png)
 			if block then
-				setP(lfl_Corner+right*(x-1)+ up*(asset_png.height-y),block)
+				setP(lfl_Corner+right*(x-1)+ up*(asset_png.height*size-y),block)
 			end
 		end
 	end
@@ -478,9 +478,11 @@ local function checkItems(section)
 	print(string.format("Items for layers %d-%d:",section.minLayer+2,section.maxLayer+2))
 	local hasAll = true
 	for block,count in pairs(section.items) do
-		print(string.format("%6dx %s",hasItems[block] and count-hasItems[block] or count,block))
-		if not hasItems[block] or hasItems[block] < count then
-			hasAll = false
+		if not hasItems[block] or count-hasItems[block] ~= 0 then
+			print(string.format("%6dx %s",hasItems[block] and count-hasItems[block] or count,block))
+			if not hasItems[block] or hasItems[block] < count then
+				hasAll = false
+			end
 		end
 	end
 	term.setTextColor(term.isColor() and colors.red or colors.lightGray)
@@ -540,28 +542,45 @@ local zero = vector.new()
 
 print("Press t to abort")
 
+local currentSection
+local nextSection
+local currentLayer
+
 local function build()
-	local current = countItems({})
-	local nextSection
-	if type(_G.smeltNextItems) == "function" then
-		_G.smeltNextItems(current.items)
+	local resuming = false
+	if fs.exists("statue_progress") then
+		local save = dofile("statue_progress")
+		plan = save.plan
+		currentSection = save.currentSection
+		nextSection = save.nextSection
+		resuming = true
+		fs.delete("statue_progress")
+	else
+		currentSection = countItems({})
+		if type(_G.smeltNextItems) == "function" then
+			_G.smeltNextItems(currentSection.items)
+		end
 	end
 	repeat
-		nextSection = countItems(current)
-		rednet.send(16,textutils.serialize(nextSection))
-		if settings.get("statue.returnForItems", true) then
-			goTo(zero)
-			face(vector.new(0,1,0))
-		end
-		if type(_G.smeltNextItems) == "function" then
-			_G.smeltNextItems(nextSection.items)
-		end
-		if type(_G.gatherItems) == "function" then
-			parallel.waitForAll(function () waitForItems(current) end, function() _G.gatherItems(current.items) end)
+		if not resuming then
+			nextSection = countItems(currentSection)
+			if settings.get("statue.returnForItems", true) then
+				goTo(zero)
+				face(vector.new(0,1,0))
+			end
+			if type(_G.gatherItems) == "function" then
+				parallel.waitForAll(function () waitForItems(currentSection) end, function() _G.gatherItems(currentSection.items) end)
+			else
+				waitForItems(currentSection)
+			end
+			if type(_G.smeltNextItems) == "function" and next(nextSection.items) then
+				_G.smeltNextItems(nextSection.items)
+			end
 		else
-			waitForItems(current)
+			resuming = false
 		end
-		for i=current.minLayer,current.maxLayer do
+		for i=currentSection.minLayer,currentSection.maxLayer do
+			currentLayer = i
 			local nextPos = findClosest(i)
 			print("Building layer " .. tostring(i+2))
 			while nextPos do
@@ -570,15 +589,16 @@ local function build()
 					turtle.select(slot)
 				end
 				goTo(nextPos + up)
-				while not turtle.placeDown() do
+				while not (turtle.placeDown() or 
+					(getP(nextPos) == "string" and turtle.detectDown() and turtle.dropUp(1))) do
 					checkAborted()
 				end
 				setP(nextPos,nil)
 				nextPos = findClosest(i)
 			end
 		end
-		current = nextSection
-	until current.used_slots == 0
+		currentSection = nextSection
+	until currentSection.used_slots == 0
 end
 
 local function setBlocks()
@@ -590,7 +610,7 @@ local function setBlocks()
 				repeat 
 					ok,msg = pcall(commands.async.setblock,"~"..k,"~"..i,"~"..m,n)
 					if not ok then --catch tasklimit
-						printError(msg)
+						print(msg)
 						sleep(1)
 					end
 					if aborted then
@@ -623,15 +643,38 @@ local ok,msg
 if turtle then
 	ok,msg = pcall(function() parallel.waitForAny(build, listenAbort) end)
 elseif commands then
-	ok,msg = pcall(function() parallel.waitForAny(setBlocks, listenAbort) end)
+	setBlocks()
+	return
 else
 	print("Must be on a command computer or on a turtle")
+end
+
+--From http://lua-users.org/wiki/CopyTable
+function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
 end
 
 if not ok then
 	printError(msg)
 	if settings.get("statue.returnOnError", true) and pos ~= zero then
 		print("Going home to cry")
+		currentSection.minLayer = currentLayer
+		local f = fs.open("statue_progress","w")
+		f.write("return ".. textutils.serialize(deepcopy(
+			{currentSection=currentSection,nextSection=nextSection,plan=plan})))
+		f.close()
+		print("Run with the same parameters to resume")
 		goTo(zero)
 		face(vector.new(0,1,0))
 	end
