@@ -1,6 +1,6 @@
 rednet.open("left")
 local rsp = peripheral.wrap("back")
-local cardinal = "south"
+local cardinal = "west"
 
 rednet.host("item_requests","supplier")
 local settings = require "refinedstorage.autostocksettings"
@@ -13,7 +13,7 @@ local craftings = {
     stained_glass = {glass={2,3,4,6,8,10,11,12},color={7},amount=8},
     wool = {wool={2},color={3}},
     concrete_powder = {sand={2,3,4,6},gravel={8,10,11,12},color={7},amount=8},
-    concrete = {concrete_powder={2}}	
+    concrete = {concrete_powder={2}}
 }
 
 local concrete_timer = 0
@@ -29,7 +29,7 @@ local function craft(item, count, slots, color, block)
         end
         if block == "concrete" then
             turtle.dropDown(count)
-			local new_ct = os.clock() + 10 + (count > 64 and 64 or count)/3
+			local new_ct = os.clock() + 15 + (count > 64 and 64 or count)/3
 			concrete_timer = math.max(concrete_timer, new_ct)
 			if turtle.getItemCount() > 0 then
 				turtle.drop()
@@ -99,8 +99,13 @@ local function complete_helper(items, ct)
 			local rem = count
 			while rem > 0 do
 				local stack = rem > 64 and 64 or rem
-				craft(item, stack, {1},color,block)
-				turtle.dropUp(stack)
+                local rsitem = rsp.getItem({name=item}).count
+				if rsitem and rsitem > stack then
+                    rsp.extractItem({name=item},stack,cardinal)
+                else
+                    craft(item, stack, {1},color,block)
+				end
+                turtle.dropUp(stack)
 				if turtle.getItemCount() > 0 then
 					turtle.drop()
 				end
