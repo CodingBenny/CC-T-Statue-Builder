@@ -518,6 +518,7 @@ end
 
 local function findClosest(layer)
 	local movDir = vector.new(0,1,0)
+	if getP(pos) then return pos end --after moving up
 	for i=1,4 do
 		local n = pos + movDir
 		n.x = layer
