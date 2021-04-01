@@ -518,10 +518,10 @@ end
 
 local function findClosest(layer)
 	local movDir = vector.new(0,1,0)
-	if getP(pos) then return pos end --after moving up
+	local closest = vector.new(layer, pos.y, pos.z)
+	if getP(closest) then return closest end --after moving up
 	for i=1,4 do
-		local n = pos + movDir
-		n.x = layer
+		local n = closest + movDir
 		if getP(n) and getSlot(getP(n)) then
 			return n
 		end
