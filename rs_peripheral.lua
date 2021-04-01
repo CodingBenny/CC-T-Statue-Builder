@@ -11,7 +11,7 @@ turtle.select(1)
 local craftings = {
     terracotta = {terracotta={2,3,4,6,8,10,11,12},color={7},amount=8},
     stained_glass = {glass={2,3,4,6,8,10,11,12},color={7},amount=8},
-    wool = {wool={2},color={3}},
+    wool = {white_wool={2},color={3}},
     concrete_powder = {sand={2,3,4,6},gravel={8,10,11,12},color={7},amount=8},
     concrete = {concrete_powder={2}}
 }
