@@ -205,9 +205,15 @@ local function complete()
         print(#queue)
         queue[1].done = true
         os.pullEvent("ender_empty")
-		restock()
         table.remove(queue,1)
     end
 end
 
-parallel.waitForAll(listen, complete)
+local function keepRestocked()
+	while true do
+		restock()
+		sleep(300)
+	end
+end
+
+parallel.waitForAll(listen, complete,keepRestocked)
